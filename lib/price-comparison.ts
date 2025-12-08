@@ -93,11 +93,10 @@ export async function searchPrices(
         // Look for price indicators in the text
         const priceMatch = extractPrice(fullText)
         
-        // Also check if it looks like a product page (has price-related keywords)
-        const hasPriceKeywords = /(price|£|\$|€|buy|purchase|for sale|add to cart|add to basket)/i.test(fullText)
-        
-        // Only add results if we found an actual price
-        if (priceMatch && priceMatch.price > 0) {
+        // Only add results if we found an actual price in the snippet
+        // Don't try to fetch from pages (too slow and unreliable)
+        if (priceMatch && priceMatch.price > 0 && priceMatch.price < 100000) {
+          // Validate price is reasonable (not a placeholder)
           results.push({
             retailer: extractRetailer(item.displayLink),
             price: priceMatch.price,
@@ -107,28 +106,8 @@ export async function searchPrices(
             image_url: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.cse_thumbnail?.[0]?.src,
             in_stock: true,
           })
-        } else if (hasPriceKeywords && item.link) {
-          // If it looks like a product page but no price found, try to fetch price from the page
-          // This is a fallback - we'll try to get the price from the actual product page
-          try {
-            const pagePrice = await fetchPriceFromPage(item.link)
-            if (pagePrice && pagePrice.price > 0) {
-              results.push({
-                retailer: extractRetailer(item.displayLink),
-                price: pagePrice.price,
-                currency: pagePrice.currency || 'GBP',
-                product_url: item.link,
-                product_title: item.title,
-                image_url: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.cse_thumbnail?.[0]?.src,
-                in_stock: true,
-              })
-            }
-            // If we can't get price from page, skip this result (don't add placeholder)
-          } catch (err) {
-            // Skip if we can't fetch price
-            console.log('Skipping result without price:', item.link)
-          }
         }
+        // If no price found, skip this result entirely (don't add placeholder)
       }
     }
     
@@ -168,7 +147,9 @@ function extractPrice(text: string): { price: number; currency: string } | null 
       const priceStr = match[1].replace(/,/g, '')
       const price = parseFloat(priceStr)
       
-      if (!isNaN(price) && price > 0 && price < 1000000) { // Reasonable price range
+      // Validate price is reasonable and not a placeholder
+      // Reject prices over £100,000 and specifically reject 999999 (common placeholder)
+      if (!isNaN(price) && price >= 0.01 && price <= 100000 && price !== 999999) {
         // Determine currency
         let currency = 'USD'
         if (text.includes('£') || /GBP|pound/i.test(text)) currency = 'GBP'
