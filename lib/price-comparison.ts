@@ -95,8 +95,9 @@ export async function searchPrices(
         
         // Only add results if we found an actual price in the snippet
         // Don't try to fetch from pages (too slow and unreliable)
-        if (priceMatch && priceMatch.price > 0 && priceMatch.price < 100000) {
-          // Validate price is reasonable (not a placeholder)
+        // Only add results if we found an actual, valid price
+        // Price must be between £0.01 and £100,000 (prevents placeholders like 999999)
+        if (priceMatch && priceMatch.price >= 0.01 && priceMatch.price <= 100000 && priceMatch.price !== 999999) {
           results.push({
             retailer: extractRetailer(item.displayLink),
             price: priceMatch.price,
