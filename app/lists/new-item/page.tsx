@@ -312,8 +312,9 @@ export default function NewItemPage() {
                             body: JSON.stringify({ imageBase64: base64 }),
                           })
                           
+                          const data = await response.json()
+                          
                           if (response.ok) {
-                            const data = await response.json()
                             if (data.productName) {
                               setTitle(data.productName)
                               if (data.description && !description) {
@@ -323,17 +324,21 @@ export default function NewItemPage() {
                               setError('Could not identify product from image. Please enter a title manually.')
                             }
                           } else {
-                            const errorData = await response.json()
-                            if (errorData.error?.includes('not configured')) {
-                              // Vision API not set up - that's okay, user can still add image
-                              console.log('Vision API not configured, skipping image analysis')
+                            // API returned an error
+                            console.error('Image analysis error:', data)
+                            if (data.error?.includes('not configured') || data.error?.includes('No image analysis API')) {
+                              // API not set up - that's okay, user can still add image
+                              console.log('Image analysis API not configured, skipping')
+                            } else if (data.error?.includes('Gemini API error') || data.error?.includes('Vision API error')) {
+                              // API error (might be quota, invalid key, etc.)
+                              setError(`Image analysis failed: ${data.error}. You can still add the item manually.`)
                             } else {
                               setError('Failed to analyze image. You can still add the item manually.')
                             }
                           }
-                        } catch (err) {
+                        } catch (err: any) {
                           console.error('Error analyzing image:', err)
-                          // Don't show error - user can still add item manually
+                          setError('Failed to analyze image. You can still add the item manually.')
                         } finally {
                           setAnalyzingImage(false)
                         }

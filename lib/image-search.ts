@@ -194,8 +194,26 @@ export async function analyzeProductImageWithGemini(
   }
 
   try {
-    // Remove data URL prefix if present
-    const base64Image = imageBase64.split(',')[1] || imageBase64
+    // Remove data URL prefix if present and detect MIME type
+    let base64Image = imageBase64
+    let mimeType = 'image/jpeg' // default
+    
+    if (imageBase64.includes(',')) {
+      const parts = imageBase64.split(',')
+      const dataUrlPrefix = parts[0]
+      base64Image = parts[1]
+      
+      // Detect MIME type from data URL
+      if (dataUrlPrefix.includes('image/png')) {
+        mimeType = 'image/png'
+      } else if (dataUrlPrefix.includes('image/jpeg') || dataUrlPrefix.includes('image/jpg')) {
+        mimeType = 'image/jpeg'
+      } else if (dataUrlPrefix.includes('image/webp')) {
+        mimeType = 'image/webp'
+      } else if (dataUrlPrefix.includes('image/gif')) {
+        mimeType = 'image/gif'
+      }
+    }
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${apiKey}`,
@@ -213,7 +231,7 @@ export async function analyzeProductImageWithGemini(
                 },
                 {
                   inline_data: {
-                    mime_type: 'image/jpeg',
+                    mime_type: mimeType,
                     data: base64Image,
                   },
                 },
@@ -226,12 +244,28 @@ export async function analyzeProductImageWithGemini(
 
     if (!response.ok) {
       const errorText = await response.text()
+      let errorMessage = `Gemini API error: ${response.statusText}`
+      
+      try {
+        const errorData = JSON.parse(errorText)
+        if (errorData.error?.message) {
+          errorMessage = `Gemini API error: ${errorData.error.message}`
+        } else if (errorData.error) {
+          errorMessage = `Gemini API error: ${JSON.stringify(errorData.error)}`
+        }
+      } catch {
+        // If error text is not JSON, use the text as-is
+        if (errorText) {
+          errorMessage = `Gemini API error: ${errorText.substring(0, 200)}`
+        }
+      }
+      
       console.error('Gemini API error:', errorText)
       return {
         productName: null,
         description: null,
         labels: [],
-        error: `Gemini API error: ${response.statusText}`,
+        error: errorMessage,
       }
     }
 

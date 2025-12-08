@@ -34,10 +34,18 @@ export async function POST(request: NextRequest) {
     const result = await analyzeProductImage(imageBase64, config.apiKey, config.provider as any)
 
     if (result.error) {
-      return NextResponse.json(
-        { error: result.error, ...result },
-        { status: 400 }
-      )
+      // Log the error for debugging
+      console.error('Image analysis error:', {
+        provider: config.provider,
+        error: result.error,
+        method: result.method,
+      })
+      
+      // Return 200 with error info (don't fail the request, let user continue)
+      return NextResponse.json({
+        error: result.error,
+        ...result,
+      })
     }
 
     return NextResponse.json(result)
