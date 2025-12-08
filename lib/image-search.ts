@@ -17,7 +17,7 @@ interface ImageSearchResult {
 
 /**
  * Main function to analyze product image
- * Tries multiple methods in order: Gemini > SerpAPI > Vision API
+ * Tries multiple methods in order: Gemini > Vision API
  */
 export async function analyzeProductImage(
   imageBase64: string,
@@ -28,16 +28,39 @@ export async function analyzeProductImage(
   const activeProvider = provider || config?.provider || 'vision'
   const activeKey = apiKey || config?.apiKey
 
+  console.log('Image analysis - Provider:', activeProvider, 'Has API key:', !!activeKey)
+
   // Try Gemini first (best results)
   if (activeProvider === 'gemini' || (!provider && config?.provider === 'gemini')) {
+    console.log('Attempting Gemini API analysis...')
     const result = await analyzeProductImageWithGemini(imageBase64, activeKey)
+    console.log('Gemini result:', { 
+      hasProductName: !!result.productName, 
+      hasError: !!result.error,
+      method: result.method 
+    })
+    
+    // If Gemini succeeded, return it
     if (result.productName && !result.error) {
+      return result
+    }
+    
+    // If Gemini failed but we have a key, return the error (don't fallback silently)
+    if (activeKey && result.error) {
+      console.log('Gemini API failed:', result.error)
       return result
     }
   }
 
   // Fallback to Vision API
-  return analyzeProductImageWithVisionAPI(imageBase64, activeKey)
+  console.log('Falling back to Vision API...')
+  const visionResult = await analyzeProductImageWithVisionAPI(imageBase64, activeKey)
+  console.log('Vision API result:', { 
+    hasProductName: !!visionResult.productName, 
+    hasError: !!visionResult.error,
+    method: visionResult.method 
+  })
+  return visionResult
 }
 
 /**
@@ -227,7 +250,7 @@ export async function analyzeProductImageWithGemini(
             {
               parts: [
                 {
-                  text: 'What product is shown in this image? Please provide:\n1. The exact product name/brand\n2. A brief description\n3. Key features or details\n\nFormat your response as:\nProduct: [name]\nDescription: [description]\nFeatures: [features]',
+                  text: 'Identify the product in this image. Provide:\n1. The exact product name and brand (e.g., "Sony WH-1000XM5 Wireless Headphones")\n2. A clear, concise product description\n3. Key identifying features\n\nBe specific and accurate. Format your response as:\nProduct: [exact product name]\nDescription: [clear description]\nFeatures: [key features]',
                 },
                 {
                   inline_data: {
@@ -270,9 +293,16 @@ export async function analyzeProductImageWithGemini(
     }
 
     const data = await response.json()
+    console.log('Gemini API response structure:', {
+      hasCandidates: !!data.candidates,
+      candidatesLength: data.candidates?.length,
+      hasContent: !!data.candidates?.[0]?.content,
+      hasParts: !!data.candidates?.[0]?.content?.parts,
+    })
 
     if (data.candidates && data.candidates[0]?.content?.parts) {
       const text = data.candidates[0].content.parts[0].text || ''
+      console.log('Gemini response text (first 200 chars):', text.substring(0, 200))
       
       // Parse the response
       let productName: string | null = null
@@ -298,16 +328,34 @@ export async function analyzeProductImageWithGemini(
         labels.push(...features)
       }
 
-      // If no structured format, try to extract from free text
+      // If no structured format, try smarter extraction from free text
       if (!productName && text) {
-        const lines = text.split('\n').filter((l: string) => l.trim().length > 0)
+        // Try to find the first meaningful line (skip empty lines, formatting)
+        const lines = text.split('\n')
+          .map((l: string) => l.trim())
+          .filter((l: string) => l.length > 0 && !l.match(/^[0-9]+\./)) // Skip numbered list items
+        
         if (lines.length > 0) {
-          productName = lines[0].trim()
+          // First line is usually the product name
+          productName = lines[0]
+          
+          // Next few lines are usually description
           if (lines.length > 1) {
-            description = lines.slice(1).join(' ').trim()
+            // Take up to 3 lines for description
+            description = lines.slice(1, 4).join(' ').trim()
           }
         }
       }
+
+      // If still no product name, use first sentence of text
+      if (!productName && text) {
+        const firstSentence = text.split(/[.!?]/)[0].trim()
+        if (firstSentence.length > 0 && firstSentence.length < 100) {
+          productName = firstSentence
+        }
+      }
+
+      console.log('Parsed Gemini result:', { productName, description, labelsCount: labels.length })
 
       return {
         productName,

@@ -18,8 +18,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get API configuration (tries Gemini > SerpAPI > Vision API)
+    // Get API configuration (tries Gemini > Vision API)
     const config = getVisionApiConfig()
+
+    console.log('Image analysis API config:', {
+      hasConfig: !!config,
+      provider: config?.provider,
+      hasApiKey: !!config?.apiKey,
+    })
 
     if (!config) {
       return NextResponse.json(
@@ -32,6 +38,14 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await analyzeProductImage(imageBase64, config.apiKey, config.provider as any)
+    
+    console.log('Image analysis result:', {
+      hasProductName: !!result.productName,
+      productName: result.productName,
+      hasDescription: !!result.description,
+      method: result.method,
+      hasError: !!result.error,
+    })
 
     if (result.error) {
       // Log the error for debugging
