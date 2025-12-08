@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if we have cached prices (less than 24 hours old)
+    // Filter out invalid/placeholder prices
     const { data: cachedPrices } = await supabase
       .from('price_comparisons')
       .select('*')
@@ -44,10 +45,15 @@ export async function POST(request: NextRequest) {
       .order('price', { ascending: true })
       .limit(10)
 
-    // If we have fresh cached prices, return them
-    if (cachedPrices && cachedPrices.length > 0) {
+    // Filter out invalid prices (999999, over 100000, etc.)
+    const validCachedPrices = cachedPrices?.filter(
+      (p: any) => p.price >= 0.01 && p.price <= 100000 && p.price !== 999999
+    ) || []
+
+    // If we have fresh cached prices, return them (only valid ones)
+    if (validCachedPrices.length > 0) {
       return NextResponse.json({
-        prices: cachedPrices,
+        prices: validCachedPrices,
         cached: true,
       })
     }
@@ -117,8 +123,13 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Store results in database
-    const priceInserts = priceResults.map(price => ({
+    // Filter out invalid prices before storing
+    const validPriceResults = priceResults.filter(
+      (p) => p.price >= 0.01 && p.price <= 100000 && p.price !== 999999
+    )
+
+    // Store results in database (only valid prices)
+    const priceInserts = validPriceResults.map(price => ({
       item_id: itemId,
       retailer: price.retailer,
       price: price.price,
@@ -130,19 +141,28 @@ export async function POST(request: NextRequest) {
     }))
 
     // Use upsert to avoid duplicates
-    const { error: insertError } = await supabase
-      .from('price_comparisons')
-      .upsert(priceInserts, {
-        onConflict: 'item_id,retailer,product_url',
-      })
+    if (priceInserts.length > 0) {
+      const { error: insertError } = await supabase
+        .from('price_comparisons')
+        .upsert(priceInserts, {
+          onConflict: 'item_id,retailer,product_url',
+        })
 
-    if (insertError) {
-      console.error('Error storing price comparisons:', insertError)
-      // Still return results even if storage fails
+      if (insertError) {
+        console.error('Error storing price comparisons:', insertError)
+        // Still return results even if storage fails
+      }
     }
 
+    // Also delete any existing invalid prices for this item
+    await supabase
+      .from('price_comparisons')
+      .delete()
+      .eq('item_id', itemId)
+      .or('price.gte.100000,price.eq.999999,price.lt.0.01')
+
     return NextResponse.json({
-      prices: priceResults,
+      prices: validPriceResults,
       cached: false,
     })
   } catch (error) {
