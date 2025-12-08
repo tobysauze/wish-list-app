@@ -83,6 +83,29 @@ export default function AddSecretItemPage() {
         }
       }
 
+      // Convert link to affiliate link if provided
+      let affiliateLink: string | null = null
+      if (linkUrl) {
+        try {
+          const response = await fetch('/api/convert-affiliate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: linkUrl }),
+          })
+          if (response.ok) {
+            const data = await response.json()
+            affiliateLink = data.affiliate_url || linkUrl
+          } else {
+            // If conversion fails, use original link
+            affiliateLink = linkUrl
+          }
+        } catch (err) {
+          console.error('Error converting affiliate link:', err)
+          // If conversion fails, use original link
+          affiliateLink = linkUrl
+        }
+      }
+
       // Create secret wish list item (hidden from owner)
       const { error: insertError } = await supabase.from('wish_list_items').insert({
         wish_list_id: wishList.id,
@@ -90,6 +113,7 @@ export default function AddSecretItemPage() {
         title,
         description: description || null,
         link_url: linkUrl || null,
+        affiliate_link: affiliateLink,
         image_url: imageUrl,
         is_hidden_from_owner: true, // This is a secret item
       })

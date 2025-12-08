@@ -93,6 +93,29 @@ export default function NewItemPage() {
         }
       }
 
+      // Convert link to affiliate link if provided
+      let affiliateLink: string | null = null
+      if (linkUrl) {
+        try {
+          const response = await fetch('/api/convert-affiliate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: linkUrl }),
+          })
+          if (response.ok) {
+            const data = await response.json()
+            affiliateLink = data.affiliate_url || linkUrl
+          } else {
+            // If conversion fails, use original link
+            affiliateLink = linkUrl
+          }
+        } catch (err) {
+          console.error('Error converting affiliate link:', err)
+          // If conversion fails, use original link
+          affiliateLink = linkUrl
+        }
+      }
+
       // Create wish list item
       const { data: insertedItem, error: insertError } = await supabase
         .from('wish_list_items')
@@ -102,6 +125,7 @@ export default function NewItemPage() {
           title,
           description: description || null,
           link_url: linkUrl || null,
+          affiliate_link: affiliateLink,
           image_url: imageUrl,
           is_hidden_from_owner: false,
         })
