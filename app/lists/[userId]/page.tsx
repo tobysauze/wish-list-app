@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import type { WishListItem } from '@/types'
-import { saveUser, unsaveUser } from './actions'
+import { saveUserAction, unsaveUserAction } from './actions'
 import { PurchaseButton } from './purchase-button'
 import { Navbar } from '@/components/navbar'
 
@@ -105,7 +105,8 @@ export default async function ViewWishListPage({ params }: PageProps) {
               <p className="text-sm text-gray-500">{listOwner.email}</p>
             </div>
             {!isOwnList && (
-              <form action={savedUser ? unsaveUser.bind(null, userId) : saveUser.bind(null, userId)}>
+              <form action={savedUser ? unsaveUserAction : saveUserAction}>
+                <input type="hidden" name="userId" value={userId} />
                 <button
                   type="submit"
                   className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"

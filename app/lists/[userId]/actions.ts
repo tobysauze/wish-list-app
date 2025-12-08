@@ -50,4 +50,15 @@ export async function unsaveUser(userId: string) {
   return { success: true }
 }
 
+// Wrapper functions for form actions (must return void)
+export async function saveUserAction(formData: FormData) {
+  const userId = formData.get('userId') as string
+  await saveUser(userId)
+}
+
+export async function unsaveUserAction(formData: FormData) {
+  const userId = formData.get('userId') as string
+  await unsaveUser(userId)
+}
+
 
