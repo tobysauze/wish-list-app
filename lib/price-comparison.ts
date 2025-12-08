@@ -231,7 +231,10 @@ export async function searchPricesWithSerpAPI(
     url.searchParams.set('q', query)
     url.searchParams.set('api_key', apiKey)
     url.searchParams.set('num', '10')
+    url.searchParams.set('gl', 'uk') // UK results
+    url.searchParams.set('hl', 'en') // English language
 
+    console.log(`SerpAPI request: ${url.toString().replace(apiKey, '***')}`)
     const response = await fetch(url.toString())
 
     if (!response.ok) {

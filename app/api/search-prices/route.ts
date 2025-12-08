@@ -112,16 +112,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Log which provider is being used (for debugging)
+    console.log(`Using price comparison provider: ${config.provider}`)
+
     // Search for prices
     let priceResults
     if (config.provider === 'serpapi') {
+      console.log('Searching with SerpAPI...')
       priceResults = await searchPricesWithSerpAPI(searchQuery, config.apiKey)
+      console.log(`SerpAPI found ${priceResults.length} results`)
     } else {
+      console.log('Searching with Google Custom Search...')
       priceResults = await searchPrices({
         query: searchQuery,
         apiKey: config.apiKey,
         maxResults: 10,
       })
+      console.log(`Google Custom Search found ${priceResults.length} results`)
     }
 
     if (priceResults.length === 0) {
