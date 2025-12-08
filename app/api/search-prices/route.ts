@@ -80,15 +80,23 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Add shopping-related keywords to improve results
-    const baseQuery = query || `${searchTitle} ${item.description || ''}`.trim()
+    // Clean up the title - remove common suffixes and extra words
+    const cleanTitle = searchTitle
+      .replace(/\s*-\s*(Amazon|eBay|Argos|Currys|John Lewis).*$/i, '')
+      .replace(/\s*\([^)]*\)/g, '') // Remove parentheses content
+      .replace(/\s+/g, ' ')
+      .trim()
     
-    // Try multiple search variations for better results
+    // Build base query
+    const baseQuery = query || `${cleanTitle} ${item.description || ''}`.trim()
+    
+    // Try multiple search variations - search with each and combine results
     const searchVariations = [
-      `${baseQuery} buy price`,           // Best for shopping
-      `${baseQuery} for sale`,            // Alternative
-      `${baseQuery} shop`,                // Another variation
-      baseQuery,                          // Original query as fallback
+      `${cleanTitle} buy price UK`,        // Best for UK shopping
+      `${cleanTitle} for sale UK`,         // Alternative
+      `${cleanTitle} price`,               // Simple price search
+      `${cleanTitle} shop`,                // Shop search
+      baseQuery,                           // Original query as fallback
     ]
     
     // Use the first variation (most likely to find shopping results)

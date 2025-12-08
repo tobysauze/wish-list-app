@@ -56,64 +56,83 @@ export async function searchPrices(
       return []
     }
 
-    const url = new URL('https://www.googleapis.com/customsearch/v1')
-    url.searchParams.set('key', apiKey)
-    url.searchParams.set('cx', searchEngineId)
-    url.searchParams.set('q', query)
-    url.searchParams.set('num', Math.min(maxResults, 10).toString()) // Max 10 per request
-    url.searchParams.set('safe', 'active')
-    // Add fileType and searchType to help find product pages
-    url.searchParams.set('fileType', '')
-    // Try to get more shopping-related results
+    // Try multiple search queries to get more results
+    const searchQueries = [
+      query,                                    // Original query
+      `${query} buy`,                           // Add "buy"
+      `${query} price`,                         // Add "price"
+      `${query} for sale`,                      // Add "for sale"
+    ]
 
-    const response = await fetch(url.toString())
+    const allResults: PriceResult[] = []
+    const seenUrls = new Set<string>()
 
-    if (!response.ok) {
-      throw new Error(`Google API error: ${response.statusText}`)
-    }
+    // Search with each query variation
+    for (const searchQuery of searchQueries.slice(0, 2)) { // Limit to 2 queries to avoid rate limits
+      try {
+        const url = new URL('https://www.googleapis.com/customsearch/v1')
+        url.searchParams.set('key', apiKey)
+        url.searchParams.set('cx', searchEngineId)
+        url.searchParams.set('q', searchQuery)
+        url.searchParams.set('num', '10') // Get max results per query
+        url.searchParams.set('safe', 'active')
 
-    const data = await response.json()
+        const response = await fetch(url.toString())
 
-    // Parse results
-    const results: PriceResult[] = []
-    
-    if (data.items) {
-      for (const item of data.items) {
-        // Try to extract price from multiple sources
-        const snippet = item.snippet || ''
-        const title = item.title || ''
-        const fullText = `${title} ${snippet}`.toLowerCase()
-        
-        // Skip if it's clearly not a product page (e.g., Wikipedia, reviews, etc.)
-        const skipDomains = ['wikipedia.org', 'reddit.com', 'youtube.com', 'facebook.com']
-        const shouldSkip = skipDomains.some(domain => item.displayLink?.includes(domain))
-        
-        if (shouldSkip) continue
-        
-        // Look for price indicators in the text
-        const priceMatch = extractPrice(fullText)
-        
-        // Only add results if we found an actual price in the snippet
-        // Don't try to fetch from pages (too slow and unreliable)
-        // Only add results if we found an actual, valid price
-        // Price must be between £0.01 and £100,000 (prevents placeholders like 999999)
-        if (priceMatch && priceMatch.price >= 0.01 && priceMatch.price <= 100000 && priceMatch.price !== 999999) {
-          results.push({
-            retailer: extractRetailer(item.displayLink),
-            price: priceMatch.price,
-            currency: priceMatch.currency || 'GBP',
-            product_url: item.link,
-            product_title: item.title,
-            image_url: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.cse_thumbnail?.[0]?.src,
-            in_stock: true,
-          })
+        if (!response.ok) {
+          console.warn(`Google API error for query "${searchQuery}": ${response.statusText}`)
+          continue // Try next query
         }
-        // If no price found, skip this result entirely (don't add placeholder)
+
+        const data = await response.json()
+
+        // Parse results from this query
+        if (data.items) {
+          for (const item of data.items) {
+            // Skip duplicates
+            if (seenUrls.has(item.link)) continue
+            seenUrls.add(item.link)
+
+            // Try to extract price from multiple sources
+            const snippet = item.snippet || ''
+            const title = item.title || ''
+            const fullText = `${title} ${snippet}`.toLowerCase()
+            
+            // Skip if it's clearly not a product page
+            const skipDomains = ['wikipedia.org', 'reddit.com', 'youtube.com', 'facebook.com', 'twitter.com', 'instagram.com', 'pinterest.com']
+            const shouldSkip = skipDomains.some(domain => item.displayLink?.includes(domain))
+            
+            if (shouldSkip) continue
+            
+            // Look for price indicators in the text
+            const priceMatch = extractPrice(fullText)
+            
+            // Only add results if we found an actual, valid price
+            if (priceMatch && priceMatch.price >= 0.01 && priceMatch.price <= 100000 && priceMatch.price !== 999999) {
+              allResults.push({
+                retailer: extractRetailer(item.displayLink),
+                price: priceMatch.price,
+                currency: priceMatch.currency || 'GBP',
+                product_url: item.link,
+                product_title: item.title,
+                image_url: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.cse_thumbnail?.[0]?.src,
+                in_stock: true,
+              })
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`Error searching with query "${searchQuery}":`, err)
+        continue // Try next query
       }
     }
     
-    // Sort results by price (only valid prices should be in results now)
-    return results.sort((a, b) => a.price - b.price)
+    // Remove duplicates by URL and sort by price
+    const uniqueResults = Array.from(
+      new Map(allResults.map(r => [r.product_url, r])).values()
+    )
+    
+    return uniqueResults.sort((a, b) => a.price - b.price).slice(0, maxResults)
   } catch (error) {
     console.error('Error searching prices:', error)
     return []
@@ -126,24 +145,33 @@ export async function searchPrices(
  * Improved to handle UK prices (£) and various formats
  */
 function extractPrice(text: string): { price: number; currency: string } | null {
-  // Common price patterns - more comprehensive
+  // Common price patterns - more comprehensive and ordered by likelihood
   const patterns = [
-    /£\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,           // £29.99 or £1,299.99
-    /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,          // $29.99 or $1,299.99
-    /€\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,           // €25.00
-    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:GBP|pounds?)/i,  // 29.99 GBP or 29.99 pounds
-    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|dollars?)/i, // 29.99 USD
-    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:EUR|euros?)/i,   // 25.00 EUR
-    /price[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i, // Price: £29.99
-    /now[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i,   // Now: £29.99
-    /was[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i,   // Was: £29.99
-    /[£$€]\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,       // Generic currency symbol
+    // UK prices (most common for UK users)
+    /£\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g,           // £29.99 or £1,299.99
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:GBP|pounds?|£)/gi,  // 29.99 GBP or 29.99 pounds
+    // US prices
+    /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g,          // $29.99 or $1,299.99
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|dollars?|\$)/gi, // 29.99 USD
+    // Euro prices
+    /€\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g,           // €25.00
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:EUR|euros?|€)/gi,   // 25.00 EUR
+    // Contextual patterns
+    /price[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi, // Price: £29.99
+    /now[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi,   // Now: £29.99
+    /was[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi,   // Was: £29.99
+    /from[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi,   // From: £29.99
+    /only[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/gi,   // Only: £29.99
+    // Generic currency symbol (last resort)
+    /[£$€]\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g,       // Generic currency symbol
   ]
 
-  // Try each pattern
+  // Try each pattern and find all matches
+  const foundPrices: Array<{ price: number; currency: string }> = []
+
   for (const pattern of patterns) {
-    const match = text.match(pattern)
-    if (match) {
+    const matches = text.matchAll(pattern)
+    for (const match of matches) {
       // Remove commas and parse
       const priceStr = match[1].replace(/,/g, '')
       const price = parseFloat(priceStr)
@@ -152,14 +180,20 @@ function extractPrice(text: string): { price: number; currency: string } | null 
       // Reject prices over £100,000 and specifically reject 999999 (common placeholder)
       if (!isNaN(price) && price >= 0.01 && price <= 100000 && price !== 999999) {
         // Determine currency
-        let currency = 'USD'
+        let currency = 'GBP' // Default to GBP for UK
         if (text.includes('£') || /GBP|pound/i.test(text)) currency = 'GBP'
         else if (text.includes('€') || /EUR|euro/i.test(text)) currency = 'EUR'
         else if (text.includes('$') || /USD|dollar/i.test(text)) currency = 'USD'
         
-        return { price, currency }
+        foundPrices.push({ price, currency })
       }
     }
+  }
+
+  // Return the lowest price found (most likely the actual price)
+  if (foundPrices.length > 0) {
+    foundPrices.sort((a, b) => a.price - b.price)
+    return foundPrices[0]
   }
 
   return null
