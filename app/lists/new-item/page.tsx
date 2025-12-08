@@ -13,6 +13,7 @@ export default function NewItemPage() {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [extracting, setExtracting] = useState(false)
+  const [analyzingImage, setAnalyzingImage] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -289,9 +290,75 @@ export default function NewItemPage() {
                 id="image"
                 type="file"
                 accept="image/*"
-                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  setImageFile(file || null)
+                  
+                  // If image is selected and title is empty, try to identify product
+                  if (file && !title.trim()) {
+                    setAnalyzingImage(true)
+                    setError(null)
+                    
+                    try {
+                      // Convert image to base64
+                      const reader = new FileReader()
+                      reader.onload = async () => {
+                        const base64 = reader.result as string
+                        
+                        try {
+                          const response = await fetch('/api/analyze-image', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ imageBase64: base64 }),
+                          })
+                          
+                          if (response.ok) {
+                            const data = await response.json()
+                            if (data.productName) {
+                              setTitle(data.productName)
+                              if (data.description && !description) {
+                                setDescription(data.description)
+                              }
+                            } else {
+                              setError('Could not identify product from image. Please enter a title manually.')
+                            }
+                          } else {
+                            const errorData = await response.json()
+                            if (errorData.error?.includes('not configured')) {
+                              // Vision API not set up - that's okay, user can still add image
+                              console.log('Vision API not configured, skipping image analysis')
+                            } else {
+                              setError('Failed to analyze image. You can still add the item manually.')
+                            }
+                          }
+                        } catch (err) {
+                          console.error('Error analyzing image:', err)
+                          // Don't show error - user can still add item manually
+                        } finally {
+                          setAnalyzingImage(false)
+                        }
+                      }
+                      reader.onerror = () => {
+                        setAnalyzingImage(false)
+                      }
+                      reader.readAsDataURL(file)
+                    } catch (err) {
+                      setAnalyzingImage(false)
+                    }
+                  }
+                }}
                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
               />
+              {analyzingImage && (
+                <p className="mt-1 text-xs text-blue-600">
+                  🔍 Analyzing image to identify product...
+                </p>
+              )}
+              {imageFile && !analyzingImage && !title.trim() && (
+                <p className="mt-1 text-xs text-gray-500">
+                  💡 Tip: Enter a product name manually or wait for image analysis
+                </p>
+              )}
             </div>
 
             <div className="flex justify-end gap-4">
