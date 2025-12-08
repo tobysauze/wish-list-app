@@ -58,8 +58,11 @@ export async function searchPrices(
     url.searchParams.set('key', apiKey)
     url.searchParams.set('cx', searchEngineId)
     url.searchParams.set('q', query)
-    url.searchParams.set('num', maxResults.toString())
+    url.searchParams.set('num', Math.min(maxResults, 10).toString()) // Max 10 per request
     url.searchParams.set('safe', 'active')
+    // Add fileType and searchType to help find product pages
+    url.searchParams.set('fileType', '')
+    // Try to get more shopping-related results
 
     const response = await fetch(url.toString())
 
@@ -74,22 +77,50 @@ export async function searchPrices(
     
     if (data.items) {
       for (const item of data.items) {
-        // Extract price from snippet or title
-        const priceMatch = extractPrice(item.snippet || item.title)
+        // Try to extract price from multiple sources
+        const snippet = item.snippet || ''
+        const title = item.title || ''
+        const fullText = `${title} ${snippet}`.toLowerCase()
         
-        if (priceMatch) {
-          results.push({
-            retailer: extractRetailer(item.displayLink),
-            price: priceMatch.price,
-            currency: priceMatch.currency || 'USD',
-            product_url: item.link,
-            product_title: item.title,
-            image_url: item.pagemap?.cse_image?.[0]?.src,
-            in_stock: true, // Assume in stock if found
-          })
+        // Skip if it's clearly not a product page (e.g., Wikipedia, reviews, etc.)
+        const skipDomains = ['wikipedia.org', 'reddit.com', 'youtube.com', 'facebook.com']
+        const shouldSkip = skipDomains.some(domain => item.displayLink?.includes(domain))
+        
+        if (shouldSkip) continue
+        
+        // Look for price indicators in the text
+        const priceMatch = extractPrice(fullText)
+        
+        // Also check if it looks like a product page (has price-related keywords)
+        const hasPriceKeywords = /(price|£|\$|€|buy|purchase|for sale|add to cart|add to basket)/i.test(fullText)
+        
+        if (priceMatch || hasPriceKeywords) {
+          // If we found a price, use it; otherwise try to extract from URL or set a placeholder
+          const price = priceMatch?.price || 0
+          const currency = priceMatch?.currency || 'GBP' // Default to GBP for UK, adjust as needed
+          
+          // Only add if we found an actual price, or if it's clearly a product page
+          if (price > 0 || (hasPriceKeywords && item.link)) {
+            results.push({
+              retailer: extractRetailer(item.displayLink),
+              price: price || 999999, // Use high number if no price found (will sort last)
+              currency: currency,
+              product_url: item.link,
+              product_title: item.title,
+              image_url: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.cse_thumbnail?.[0]?.src,
+              in_stock: true, // Assume in stock if found
+            })
+          }
         }
       }
     }
+    
+    // Filter out placeholder prices before sorting
+    const validResults = results.filter(r => r.price < 999999)
+    const placeholderResults = results.filter(r => r.price >= 999999)
+    
+    // Sort valid results by price, then append placeholders
+    return [...validResults.sort((a, b) => a.price - b.price), ...placeholderResults]
 
     // Sort by price (lowest first)
     return results.sort((a, b) => a.price - b.price)
@@ -102,26 +133,37 @@ export async function searchPrices(
 /**
  * Extract price from text
  * Looks for patterns like $29.99, £19.99, €25.00, etc.
+ * Improved to handle UK prices (£) and various formats
  */
 function extractPrice(text: string): { price: number; currency: string } | null {
-  // Common price patterns
+  // Common price patterns - more comprehensive
   const patterns = [
-    /\$(\d+\.?\d*)/,           // $29.99
-    /£(\d+\.?\d*)/,            // £19.99
-    /€(\d+\.?\d*)/,            // €25.00
-    /(\d+\.?\d*)\s*(USD|EUR|GBP)/i,  // 29.99 USD
-    /price[:\s]*\$?(\d+\.?\d*)/i,    // Price: $29.99
+    /£\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,           // £29.99 or £1,299.99
+    /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,          // $29.99 or $1,299.99
+    /€\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,           // €25.00
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:GBP|pounds?)/i,  // 29.99 GBP or 29.99 pounds
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|dollars?)/i, // 29.99 USD
+    /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:EUR|euros?)/i,   // 25.00 EUR
+    /price[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i, // Price: £29.99
+    /now[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i,   // Now: £29.99
+    /was[:\s]*[£$€]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i,   // Was: £29.99
+    /[£$€]\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/,       // Generic currency symbol
   ]
 
+  // Try each pattern
   for (const pattern of patterns) {
     const match = text.match(pattern)
     if (match) {
-      const price = parseFloat(match[1])
-      if (!isNaN(price) && price > 0) {
+      // Remove commas and parse
+      const priceStr = match[1].replace(/,/g, '')
+      const price = parseFloat(priceStr)
+      
+      if (!isNaN(price) && price > 0 && price < 1000000) { // Reasonable price range
+        // Determine currency
         let currency = 'USD'
-        if (text.includes('£')) currency = 'GBP'
-        if (text.includes('€')) currency = 'EUR'
-        if (match[2]) currency = match[2].toUpperCase()
+        if (text.includes('£') || /GBP|pound/i.test(text)) currency = 'GBP'
+        else if (text.includes('€') || /EUR|euro/i.test(text)) currency = 'EUR'
+        else if (text.includes('$') || /USD|dollar/i.test(text)) currency = 'USD'
         
         return { price, currency }
       }

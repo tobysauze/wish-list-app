@@ -52,8 +52,20 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Build search query
-    const searchQuery = query || `${item.title} ${item.description || ''}`.trim()
+    // Build search query optimized for shopping results
+    // Add shopping-related keywords to improve results
+    const baseQuery = query || `${item.title} ${item.description || ''}`.trim()
+    
+    // Try multiple search variations for better results
+    const searchVariations = [
+      `${baseQuery} buy price`,           // Best for shopping
+      `${baseQuery} for sale`,            // Alternative
+      `${baseQuery} shop`,                // Another variation
+      baseQuery,                          // Original query as fallback
+    ]
+    
+    // Use the first variation (most likely to find shopping results)
+    const searchQuery = searchVariations[0]
 
     // Get price comparison config
     const config = getPriceComparisonConfig()
