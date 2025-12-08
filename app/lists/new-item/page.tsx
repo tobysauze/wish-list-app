@@ -63,8 +63,8 @@ export default function NewItemPage() {
             if (uploadError.message.includes('Bucket') || uploadError.message.includes('not found')) {
               throw new Error('Storage bucket not configured. Please create the "wish-list-images" bucket in Supabase Storage, or add the item without an image.')
             }
-            // If it's a 400 error, it might be a policy issue - allow continuing without image
-            if (uploadError.statusCode === '400' || uploadError.message.includes('policy') || uploadError.message.includes('permission')) {
+            // If it's a policy/permission error, allow continuing without image
+            if (uploadError.message.includes('policy') || uploadError.message.includes('permission')) {
               console.warn('Image upload failed due to permissions, continuing without image')
               imageUrl = null // Don't set imageUrl, continue without it
             } else {
@@ -84,7 +84,7 @@ export default function NewItemPage() {
             return
           }
           // If it's a permission/policy error, continue without image
-          if (uploadErr.statusCode === '400' || uploadErr.message.includes('policy') || uploadErr.message.includes('permission')) {
+          if (uploadErr.message.includes('policy') || uploadErr.message.includes('permission')) {
             console.warn('Image upload failed due to permissions, continuing without image')
             imageUrl = null // Continue without image
           } else {
