@@ -27,10 +27,14 @@ When users upload an image of a product, the app can automatically:
 
 ### 3. Create API Key
 
+**Important:** You need an API Key, not a Service Account or OAuth client.
+
 1. Go to **APIs & Services** → **Credentials**
 2. Click **Create Credentials** → **API Key**
+   - If you see a wizard asking about "User data" vs "Application data", **cancel it** and go directly to the Credentials page
+   - You want a simple API Key, not OAuth or Service Account
 3. Copy the API key (you'll need this)
-4. (Optional) Click "Restrict Key" to limit usage:
+4. (Optional but recommended) Click "Restrict Key" to limit usage:
    - Under "API restrictions", select "Restrict key"
    - Choose "Cloud Vision API"
    - Click "Save"
