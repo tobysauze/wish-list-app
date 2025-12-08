@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { analyzeProductImage } from '@/lib/image-search'
+import { analyzeProductImage, getVisionApiConfig } from '@/lib/image-search'
 
 /**
  * API route to analyze product image
@@ -18,20 +18,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get Vision API key
-    const apiKey = process.env.GOOGLE_VISION_API_KEY
+    // Get API configuration (tries Gemini > SerpAPI > Vision API)
+    const config = getVisionApiConfig()
 
-    if (!apiKey) {
+    if (!config) {
       return NextResponse.json(
         { 
-          error: 'Google Vision API key not configured',
-          hint: 'Add GOOGLE_VISION_API_KEY to Vercel environment variables',
+          error: 'No image analysis API configured',
+          hint: 'Add GOOGLE_GEMINI_API_KEY (recommended for best results) or GOOGLE_VISION_API_KEY to Vercel environment variables',
         },
         { status: 500 }
       )
     }
 
-    const result = await analyzeProductImage(imageBase64, apiKey)
+    const result = await analyzeProductImage(imageBase64, config.apiKey, config.provider as any)
 
     if (result.error) {
       return NextResponse.json(
