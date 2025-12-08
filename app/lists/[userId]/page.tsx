@@ -5,6 +5,7 @@ import type { WishListItem } from '@/types'
 import { saveUserAction, unsaveUserAction } from './actions'
 import { PurchaseButton } from './purchase-button'
 import { Navbar } from '@/components/navbar'
+import { PriceComparison } from '@/components/price-comparison'
 
 interface PageProps {
   params: Promise<{
@@ -194,6 +195,9 @@ export default async function ViewWishListPage({ params }: PageProps) {
                         View Product →
                       </a>
                     )}
+                    <div className="mt-4">
+                      <PriceComparison item={item} />
+                    </div>
                     {!isOwnList && (
                       <div className="mt-4">
                         <PurchaseButton 

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
+import { PriceComparison } from '@/components/price-comparison'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -89,6 +90,9 @@ export default async function DashboardPage() {
                         View Product →
                       </a>
                     )}
+                    <div className="mt-4">
+                      <PriceComparison item={item} />
+                    </div>
                   </div>
                 )
               })}
