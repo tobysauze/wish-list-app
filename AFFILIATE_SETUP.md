@@ -107,7 +107,9 @@ if (hostname.includes('target.com')) {
 
 ## Recommended Setup
 
-**For most users**: Start with **Skimlinks** - it's the easiest and supports the most retailers automatically.
+**⚠️ Note:** Skimlinks may reject sites with user-generated content. If rejected, try **Amazon Associates** instead (see `AFFILIATE_ALTERNATIVES.md`).
+
+**For most users**: Start with **Amazon Associates** - it's more accepting of user-generated content and already coded into your app!
 
 ## How Commissions Work
 
