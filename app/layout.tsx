@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { SkimlinksScript } from "@/components/skimlinks-script";
 
 export const metadata: Metadata = {
   title: "Wish List App",
@@ -13,7 +14,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <SkimlinksScript />
+      </body>
     </html>
   );
 }

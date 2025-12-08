@@ -5,32 +5,45 @@ Your wish list app is now set up to automatically convert product links to affil
 ## How It Works
 
 1. **User adds a product link** - When someone adds an item with a product URL
-2. **Automatic conversion** - The system converts it to an affiliate link
+2. **Automatic conversion** - Skimlinks JavaScript automatically converts links on the page
 3. **User clicks and buys** - When someone clicks the link and makes a purchase
 4. **You earn commission** - You receive a commission from the retailer
 
 ## Setup Options
 
-### Option 1: Skimlinks (Recommended - Easiest)
+### Option 1: Skimlinks JavaScript (Recommended - Already Configured!)
 
 **Best for**: Automatic conversion of 60,000+ retailers
 
-1. **Sign up**: Go to [skimlinks.com](https://skimlinks.com/)
-2. **Create account** - Free to join
-3. **Get API key** - Found in your dashboard
-4. **Add to Vercel**:
+✅ **Already set up!** The Skimlinks script is already added to your app.
+
+1. **Get your Skimlinks ID**:
+   - Go to [hub.skimlinks.com/snapshot](https://hub.skimlinks.com/snapshot)
+   - Copy your Skimlinks ID (the number in the script URL, e.g., `295544`)
+
+2. **Add to Vercel** (Optional - defaults to your ID):
    - Go to Vercel → Your Project → Settings → Environment Variables
-   - Add: `SKIMLINKS_API_KEY` = your API key
+   - Add: `NEXT_PUBLIC_SKIMLINKS_ID` = your Skimlinks ID (e.g., `295544`)
    - Redeploy
+
+3. **Wait for approval**:
+   - Your account is pending approval (can take up to 3 working days)
+   - Once approved, links will automatically convert
+
+**How it works**:
+- The Skimlinks script automatically detects product links on your pages
+- It converts them to affiliate links when users click
+- No manual conversion needed - it's all automatic!
 
 **Pros**: 
 - Supports 60,000+ retailers automatically
 - No need to manually configure each retailer
-- Easy setup
+- Works automatically - just add the script (already done!)
+- No API calls needed
 
 **Cons**: 
 - Takes a small percentage of commissions
-- Requires API key
+- Account needs approval first
 
 ---
 
