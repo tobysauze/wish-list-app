@@ -23,12 +23,22 @@ export function PriceComparison({ item }: PriceComparisonProps) {
   const [error, setError] = useState<string | null>(null)
   const [showComparison, setShowComparison] = useState(false)
 
+  const [provider, setProvider] = useState<string | null>(null)
+
   const handleComparePrices = async () => {
     setLoading(true)
     setError(null)
     setShowComparison(true)
+    setProvider(null)
 
     try {
+      // First check which provider is configured
+      const configResponse = await fetch('/api/check-price-config')
+      if (configResponse.ok) {
+        const configData = await configResponse.json()
+        setProvider(configData.provider || 'unknown')
+      }
+
       const response = await fetch('/api/search-prices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,7 +81,14 @@ export function PriceComparison({ item }: PriceComparisonProps) {
   return (
     <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-gray-900">Price Comparison</h4>
+        <div>
+          <h4 className="text-sm font-semibold text-gray-900">Price Comparison</h4>
+          {provider && (
+            <p className="text-xs text-gray-500 mt-0.5">
+              Using: <span className="font-medium">{provider === 'serpapi' ? 'SerpAPI' : provider === 'google' ? 'Google Custom Search' : provider}</span>
+            </p>
+          )}
+        </div>
         <button
           onClick={() => setShowComparison(false)}
           className="text-gray-400 hover:text-gray-600"
