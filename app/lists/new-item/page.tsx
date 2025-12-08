@@ -12,6 +12,7 @@ export default function NewItemPage() {
   const [linkUrl, setLinkUrl] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
+  const [extracting, setExtracting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
@@ -93,6 +94,31 @@ export default function NewItemPage() {
         }
       }
 
+      // Extract product title from link if provided and title is empty/minimal
+      let finalTitle = title.trim()
+      if (linkUrl && (!finalTitle || finalTitle.length < 10)) {
+        try {
+          const extractResponse = await fetch('/api/extract-product-title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: linkUrl }),
+          })
+          if (extractResponse.ok) {
+            const extractData = await extractResponse.json()
+            if (extractData.title && extractData.title.length > 10) {
+              finalTitle = extractData.title
+              // Also update description if available and empty
+              if (extractData.description && !description.trim()) {
+                setDescription(extractData.description)
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Error extracting product title:', err)
+          // Continue with user-provided title
+        }
+      }
+
       // Convert link to affiliate link if provided
       let affiliateLink: string | null = null
       if (linkUrl) {
@@ -122,7 +148,7 @@ export default function NewItemPage() {
         .insert({
           wish_list_id: wishList.id,
           creator_id: user.id,
-          title,
+          title: finalTitle,
           description: description || null,
           link_url: linkUrl || null,
           affiliate_link: affiliateLink,
@@ -196,16 +222,63 @@ export default function NewItemPage() {
 
             <div>
               <label htmlFor="linkUrl" className="block text-sm font-medium text-gray-700">
-                Link URL
+                Product Link (optional)
               </label>
-              <input
-                id="linkUrl"
-                type="url"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
-                placeholder="https://example.com/product"
-              />
+              <div className="flex gap-2">
+                <input
+                  id="linkUrl"
+                  name="linkUrl"
+                  type="url"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  className="relative block flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-blue-500 focus:outline-none focus:ring-blue-500 sm:text-sm"
+                  placeholder="https://example.com/product"
+                />
+                {linkUrl && !extracting && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setExtracting(true)
+                      setError(null)
+                      try {
+                        const response = await fetch('/api/extract-product-title', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ url: linkUrl }),
+                        })
+                        if (response.ok) {
+                          const data = await response.json()
+                          if (data.title) {
+                            setTitle(data.title)
+                            if (data.description && !description) {
+                              setDescription(data.description)
+                            }
+                          } else {
+                            setError('Could not extract product title from this URL')
+                          }
+                        } else {
+                          setError('Failed to extract product title')
+                        }
+                      } catch (err) {
+                        setError('Error extracting product title')
+                      } finally {
+                        setExtracting(false)
+                      }
+                    }}
+                    className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    disabled={loading || extracting}
+                  >
+                    {extracting ? 'Extracting...' : 'Extract Title'}
+                  </button>
+                )}
+              </div>
+              {linkUrl && (
+                <p className="mt-1 text-xs text-gray-500">
+                  {extracting 
+                    ? 'Extracting product title...' 
+                    : 'Click "Extract Title" to automatically get the product name from the link'}
+                </p>
+              )}
             </div>
 
             <div>

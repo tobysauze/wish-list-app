@@ -53,8 +53,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Build search query optimized for shopping results
+    // If we have a link, try to extract better title from it first
+    let searchTitle = item.title
+    if (item.link_url && (!item.title || item.title.length < 20)) {
+      try {
+        const extractResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/extract-product-title`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: item.link_url }),
+        })
+        if (extractResponse.ok) {
+          const extractData = await extractResponse.json()
+          if (extractData.title && extractData.title.length > item.title.length) {
+            searchTitle = extractData.title
+          }
+        }
+      } catch (err) {
+        console.error('Error extracting title for search:', err)
+        // Continue with original title
+      }
+    }
+    
     // Add shopping-related keywords to improve results
-    const baseQuery = query || `${item.title} ${item.description || ''}`.trim()
+    const baseQuery = query || `${searchTitle} ${item.description || ''}`.trim()
     
     // Try multiple search variations for better results
     const searchVariations = [
