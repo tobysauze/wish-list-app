@@ -1,0 +1,16 @@
+Welcome to Wish List App!
+
+Hi there!
+
+Thank you for signing up for Wish List App! We're excited to help you create and share your wish lists with friends and family.
+
+To get started, please confirm your email address by clicking the link below:
+
+{{ .ConfirmationURL }}
+
+This link will expire in 24 hours for security reasons.
+
+If you didn't create an account with Wish List App, you can safely ignore this email.
+
+© 2024 Wish List App. All rights reserved.
+
