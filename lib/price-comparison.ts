@@ -5,6 +5,8 @@
  * Currently supports Google Shopping API
  */
 
+import { fetchPriceFromPage } from './price-fetcher'
+
 interface PriceResult {
   retailer: string
   price: number
@@ -94,35 +96,43 @@ export async function searchPrices(
         // Also check if it looks like a product page (has price-related keywords)
         const hasPriceKeywords = /(price|£|\$|€|buy|purchase|for sale|add to cart|add to basket)/i.test(fullText)
         
-        if (priceMatch || hasPriceKeywords) {
-          // If we found a price, use it; otherwise try to extract from URL or set a placeholder
-          const price = priceMatch?.price || 0
-          const currency = priceMatch?.currency || 'GBP' // Default to GBP for UK, adjust as needed
-          
-          // Only add if we found an actual price, or if it's clearly a product page
-          if (price > 0 || (hasPriceKeywords && item.link)) {
-            results.push({
-              retailer: extractRetailer(item.displayLink),
-              price: price || 999999, // Use high number if no price found (will sort last)
-              currency: currency,
-              product_url: item.link,
-              product_title: item.title,
-              image_url: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.cse_thumbnail?.[0]?.src,
-              in_stock: true, // Assume in stock if found
-            })
+        // Only add results if we found an actual price
+        if (priceMatch && priceMatch.price > 0) {
+          results.push({
+            retailer: extractRetailer(item.displayLink),
+            price: priceMatch.price,
+            currency: priceMatch.currency || 'GBP',
+            product_url: item.link,
+            product_title: item.title,
+            image_url: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.cse_thumbnail?.[0]?.src,
+            in_stock: true,
+          })
+        } else if (hasPriceKeywords && item.link) {
+          // If it looks like a product page but no price found, try to fetch price from the page
+          // This is a fallback - we'll try to get the price from the actual product page
+          try {
+            const pagePrice = await fetchPriceFromPage(item.link)
+            if (pagePrice && pagePrice.price > 0) {
+              results.push({
+                retailer: extractRetailer(item.displayLink),
+                price: pagePrice.price,
+                currency: pagePrice.currency || 'GBP',
+                product_url: item.link,
+                product_title: item.title,
+                image_url: item.pagemap?.cse_image?.[0]?.src || item.pagemap?.cse_thumbnail?.[0]?.src,
+                in_stock: true,
+              })
+            }
+            // If we can't get price from page, skip this result (don't add placeholder)
+          } catch (err) {
+            // Skip if we can't fetch price
+            console.log('Skipping result without price:', item.link)
           }
         }
       }
     }
     
-    // Filter out placeholder prices before sorting
-    const validResults = results.filter(r => r.price < 999999)
-    const placeholderResults = results.filter(r => r.price >= 999999)
-    
-    // Sort valid results by price, then append placeholders
-    return [...validResults.sort((a, b) => a.price - b.price), ...placeholderResults]
-
-    // Sort by price (lowest first)
+    // Sort results by price (only valid prices should be in results now)
     return results.sort((a, b) => a.price - b.price)
   } catch (error) {
     console.error('Error searching prices:', error)
