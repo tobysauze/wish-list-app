@@ -245,15 +245,28 @@ export async function searchPricesWithSerpAPI(
     if (data.shopping_results) {
       for (const item of data.shopping_results) {
         if (item.price) {
-          results.push({
-            retailer: item.source || 'Unknown',
-            price: parseFloat(item.price.replace(/[^0-9.]/g, '')),
-            currency: item.currency || 'USD',
-            product_url: item.link,
-            product_title: item.title,
-            image_url: item.thumbnail,
-            in_stock: item.in_stock !== false,
-          })
+          // Parse price - SerpAPI returns prices as strings like "$29.99" or "£52.95"
+          const priceStr = item.price.replace(/[^0-9.]/g, '')
+          const price = parseFloat(priceStr)
+          
+          // Validate price is reasonable
+          if (!isNaN(price) && price >= 0.01 && price <= 100000 && price !== 999999) {
+            // Determine currency from price string or use item currency
+            let currency = item.currency || 'GBP'
+            if (item.price.includes('£')) currency = 'GBP'
+            else if (item.price.includes('€')) currency = 'EUR'
+            else if (item.price.includes('$')) currency = 'USD'
+            
+            results.push({
+              retailer: item.source || 'Unknown',
+              price: price,
+              currency: currency,
+              product_url: item.link,
+              product_title: item.title,
+              image_url: item.thumbnail,
+              in_stock: item.in_stock !== false,
+            })
+          }
         }
       }
     }
