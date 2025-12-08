@@ -56,11 +56,38 @@ If you want to use a different Skimlinks ID:
 **Before approval**: Links will work normally but won't convert yet
 **After approval**: Links will automatically convert when clicked
 
-To verify it's working:
-1. Add a product link (e.g., Amazon product)
-2. View the wish list
-3. Right-click the link → Inspect
-4. After approval, you'll see Skimlinks parameters in the URL
+### Quick Verification Test Page
+
+Visit: **`https://your-app.vercel.app/test-skimlinks`**
+
+This test page will:
+- ✅ Check if Skimlinks script is loaded
+- ✅ Detect if Skimlinks JavaScript is running
+- ✅ Provide test product links to click
+- ✅ Show detailed verification instructions
+
+### Manual Verification Steps
+
+1. **Check Script Loading**:
+   - Open browser DevTools (F12)
+   - Go to Network tab
+   - Reload your page
+   - Look for request to `skimresources.com/js/295544`
+   - Should see status 200 (success)
+
+2. **Check Console**:
+   - DevTools → Console tab
+   - Look for any Skimlinks-related messages
+   - (May be minimal before approval)
+
+3. **Check Links**:
+   - Right-click a product link → Copy link address
+   - Before approval: Original URL
+   - After approval: URL will have Skimlinks parameters added
+
+4. **After Approval**:
+   - Links will automatically convert when clicked
+   - Check Performance tab in Skimlinks dashboard for tracking
 
 ## 📊 Tracking Commissions
 
