@@ -14,14 +14,18 @@
 
 1. In your project dashboard, click **Settings** (gear icon) in the left sidebar
 2. Click **API** under "Project Settings"
-3. Copy these two values:
+3. Copy these values:
    - **Project URL** (under "Project URL")
    - **anon public** key (under "Project API keys" → "anon public")
+   - **service_role** key (under "Project API keys" → "service_role") - ⚠️ **Keep this secret!**
 4. Add them to your `.env.local` file:
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
    ```
+   
+   **Important**: The `SUPABASE_SERVICE_ROLE_KEY` is required for account deletion functionality. This key has admin privileges, so never expose it in client-side code or commit it to version control.
 
 ## Step 3: Set Up the Database Schema
 

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
 import { PriceComparison } from '@/components/price-comparison'
+import { DeleteAccountButton } from '@/app/auth/delete-account/client-delete'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -110,6 +111,22 @@ export default async function DashboardPage() {
               </Link>
             </div>
           )}
+
+          {/* Account Settings Section */}
+          <div className="mt-12 rounded-lg bg-white p-6 shadow">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">Account Settings</h3>
+            <div className="border-t border-gray-200 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">Delete Account</p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Permanently delete your account and all associated data. This action cannot be undone.
+                  </p>
+                </div>
+                <DeleteAccountButton />
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     </div>
