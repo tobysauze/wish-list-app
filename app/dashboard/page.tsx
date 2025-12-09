@@ -61,11 +61,25 @@ export default async function DashboardPage() {
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {(items as any[]).map((item: any) => {
                 // Don't show purchase status on your own list (keep it a surprise!)
+                const canEdit = item.creator_id === user.id
                 return (
                   <div
                     key={item.id}
-                    className="rounded-lg bg-white p-6 shadow border-2 border-transparent"
+                    className="rounded-lg bg-white p-6 shadow border-2 border-transparent relative"
                   >
+                    {canEdit && (
+                      <div className="absolute top-2 right-2">
+                        <Link
+                          href={`/lists/edit/${item.id}`}
+                          className="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                          title="Edit item"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </Link>
+                      </div>
+                    )}
                     {item.image_url && (
                       <img
                         src={item.image_url}
