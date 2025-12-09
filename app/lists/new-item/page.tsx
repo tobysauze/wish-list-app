@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -17,6 +17,102 @@ export default function NewItemPage() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
+  const formRef = useRef<HTMLFormElement>(null)
+
+  // Helper function to process image file (from file input or clipboard)
+  const processImageFile = async (file: File) => {
+    setImageFile(file)
+    
+    // If image is selected and title is empty, try to identify product
+    if (!title.trim()) {
+      setAnalyzingImage(true)
+      setError(null)
+      
+      try {
+        // Convert image to base64
+        const reader = new FileReader()
+        reader.onload = async () => {
+          const base64 = reader.result as string
+          
+          try {
+            const response = await fetch('/api/analyze-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ imageBase64: base64 }),
+            })
+            
+            const data = await response.json()
+            
+            if (response.ok) {
+              if (data.productName) {
+                setTitle(data.productName)
+                if (data.description && !description) {
+                  setDescription(data.description)
+                }
+              } else {
+                setError('Could not identify product from image. Please enter a title manually.')
+              }
+            } else {
+              // API returned an error
+              console.error('Image analysis error:', data)
+              if (data.error?.includes('not configured') || data.error?.includes('No image analysis API')) {
+                // API not set up - that's okay, user can still add image
+                console.log('Image analysis API not configured, skipping')
+              } else if (data.error?.includes('Gemini API error') || data.error?.includes('Vision API error')) {
+                // API error (might be quota, invalid key, etc.)
+                setError(`Image analysis failed: ${data.error}. You can still add the item manually.`)
+              } else {
+                setError('Failed to analyze image. You can still add the item manually.')
+              }
+            }
+          } catch (err: any) {
+            console.error('Error analyzing image:', err)
+            setError('Failed to analyze image. You can still add the item manually.')
+          } finally {
+            setAnalyzingImage(false)
+          }
+        }
+        reader.onerror = () => {
+          setAnalyzingImage(false)
+        }
+        reader.readAsDataURL(file)
+      } catch (err) {
+        setAnalyzingImage(false)
+      }
+    }
+  }
+
+  // Handle clipboard paste
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      // Only handle paste if the form is visible on the page
+      if (!formRef.current) {
+        return
+      }
+
+      const items = e.clipboardData?.items
+      if (!items) return
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.type.indexOf('image') !== -1) {
+          e.preventDefault()
+          const blob = item.getAsFile()
+          if (blob) {
+            // Convert blob to File object
+            const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: blob.type })
+            await processImageFile(file)
+          }
+          break
+        }
+      }
+    }
+
+    document.addEventListener('paste', handlePaste)
+    return () => {
+      document.removeEventListener('paste', handlePaste)
+    }
+  }, [title, description])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -185,7 +281,7 @@ export default function NewItemPage() {
         <div className="px-4 py-6 sm:px-0">
           <h2 className="mb-6 text-2xl font-bold text-gray-900">Add New Item</h2>
 
-          <form onSubmit={handleSubmit} className="space-y-6 rounded-lg bg-white p-6 shadow">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-6 rounded-lg bg-white p-6 shadow">
             {error && (
               <div className="rounded-md bg-red-50 p-4">
                 <p className="text-sm text-red-800">{error}</p>
@@ -292,68 +388,15 @@ export default function NewItemPage() {
                 accept="image/*"
                 onChange={async (e) => {
                   const file = e.target.files?.[0]
-                  setImageFile(file || null)
-                  
-                  // If image is selected and title is empty, try to identify product
-                  if (file && !title.trim()) {
-                    setAnalyzingImage(true)
-                    setError(null)
-                    
-                    try {
-                      // Convert image to base64
-                      const reader = new FileReader()
-                      reader.onload = async () => {
-                        const base64 = reader.result as string
-                        
-                        try {
-                          const response = await fetch('/api/analyze-image', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ imageBase64: base64 }),
-                          })
-                          
-                          const data = await response.json()
-                          
-                          if (response.ok) {
-                            if (data.productName) {
-                              setTitle(data.productName)
-                              if (data.description && !description) {
-                                setDescription(data.description)
-                              }
-                            } else {
-                              setError('Could not identify product from image. Please enter a title manually.')
-                            }
-                          } else {
-                            // API returned an error
-                            console.error('Image analysis error:', data)
-                            if (data.error?.includes('not configured') || data.error?.includes('No image analysis API')) {
-                              // API not set up - that's okay, user can still add image
-                              console.log('Image analysis API not configured, skipping')
-                            } else if (data.error?.includes('Gemini API error') || data.error?.includes('Vision API error')) {
-                              // API error (might be quota, invalid key, etc.)
-                              setError(`Image analysis failed: ${data.error}. You can still add the item manually.`)
-                            } else {
-                              setError('Failed to analyze image. You can still add the item manually.')
-                            }
-                          }
-                        } catch (err: any) {
-                          console.error('Error analyzing image:', err)
-                          setError('Failed to analyze image. You can still add the item manually.')
-                        } finally {
-                          setAnalyzingImage(false)
-                        }
-                      }
-                      reader.onerror = () => {
-                        setAnalyzingImage(false)
-                      }
-                      reader.readAsDataURL(file)
-                    } catch (err) {
-                      setAnalyzingImage(false)
-                    }
+                  if (file) {
+                    await processImageFile(file)
                   }
                 }}
                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
               />
+              <p className="mt-1 text-xs text-gray-500">
+                💡 Tip: You can also paste an image from your clipboard (Ctrl+V / Cmd+V)
+              </p>
               {analyzingImage && (
                 <p className="mt-1 text-xs text-blue-600">
                   🔍 Analyzing image to identify product...
